@@ -1,38 +1,18 @@
 window.addEventListener("DOMContentLoaded", () => {
+    /* =====================
+       BASIC SETUP
+    ===================== */
     const canvas = document.getElementById("renderCanvas");
     const engine = new BABYLON.Engine(canvas, true);
     const scene = new BABYLON.Scene(engine);
+
     scene.clearColor = new BABYLON.Color3(0.6, 0.8, 1);
+    scene.collisionsEnabled = true;
 
-    /* =======================
-       PHYSICS
-    ======================= */
-    scene.enablePhysics(
-        new BABYLON.Vector3(0, -9.81, 0),
-        new BABYLON.CannonJSPlugin()
-    );
-
-    /* =======================
-       CAMERA
-    ======================= */
-    const camera = new BABYLON.FreeCamera(
-        "camera",
-        new BABYLON.Vector3(0, 4, -8),
-        scene
-    );
-    camera.attachControl(canvas, true);
-    camera.speed = 0.5;
-    camera.minZ = 0.1;
-
-    /* =======================
-       LIGHTS
-    ======================= */
-    const hemi = new BABYLON.HemisphericLight(
-        "hemi",
-        new BABYLON.Vector3(0, 1, 0),
-        scene
-    );
-    hemi.intensity = 0.6;
+    /* =====================
+       LIGHTING
+    ===================== */
+    new BABYLON.HemisphericLight("hemi", new BABYLON.Vector3(0, 1, 0), scene);
 
     const dir = new BABYLON.DirectionalLight(
         "dir",
@@ -40,202 +20,163 @@ window.addEventListener("DOMContentLoaded", () => {
         scene
     );
     dir.position = new BABYLON.Vector3(20, 40, 20);
-    dir.intensity = 0.8;
 
-    /* =======================
+    /* =====================
        GROUND
-    ======================= */
+    ===================== */
     const ground = BABYLON.MeshBuilder.CreateGround(
         "ground",
         { width: 50, height: 50 },
         scene
     );
+    ground.checkCollisions = true;
 
-    ground.physicsImpostor = new BABYLON.PhysicsImpostor(
-        ground,
-        BABYLON.PhysicsImpostor.BoxImpostor,
-        { mass: 0, restitution: 0.1, friction: 1 },
+    /* =====================
+       PLAYER COLLIDER
+    ===================== */
+    const player = BABYLON.MeshBuilder.CreateCapsule(
+        "player",
+        { height: 2, radius: 0.5 },
         scene
     );
+    player.position.y = 1;
+    player.isVisible = false;
+    player.checkCollisions = true;
 
-    /* =======================
-       PLAYER PHYSICS ROOT
-       (MUST BE A MESH)
-    ======================= */
-    const playerRoot = BABYLON.MeshBuilder.CreateBox(
-        "playerRoot",
-        { height: 3, width: 1, depth: 1 },
-        scene
-    );
-    playerRoot.position = new BABYLON.Vector3(0, 2, 0);
-    playerRoot.isVisible = false;
+    player.ellipsoid = new BABYLON.Vector3(0.5, 1, 0.5);
+    player.ellipsoidOffset = new BABYLON.Vector3(0, 1, 0);
 
-    playerRoot.physicsImpostor = new BABYLON.PhysicsImpostor(
-        playerRoot,
-        BABYLON.PhysicsImpostor.BoxImpostor,
-        { mass: 1, restitution: 0, friction: 0.8 },
-        scene
-    );
+    /* =====================
+       VISUAL CHARACTER (6 PARTS)
+    ===================== */
+    const visualRoot = new BABYLON.TransformNode("visualRoot", scene);
+    visualRoot.parent = player;
 
-    /* =======================
-       MODULAR CHARACTER
-    ======================= */
     const torso = BABYLON.MeshBuilder.CreateBox(
         "torso",
-        { height: 2, width: 1, depth: 0.5 },
+        { height: 1.2, width: 0.8, depth: 0.4 },
         scene
     );
-    torso.parent = playerRoot;
-    torso.position.y = 1;
+    torso.parent = visualRoot;
+    torso.position.y = 1.2;
 
     const head = BABYLON.MeshBuilder.CreateSphere(
         "head",
-        { diameter: 0.8 },
+        { diameter: 0.6 },
         scene
     );
-    head.parent = playerRoot;
-    head.position.y = 2.5;
+    head.parent = visualRoot;
+    head.position.y = 2;
 
     const leftArm = BABYLON.MeshBuilder.CreateBox(
         "leftArm",
-        { height: 1.5, width: 0.3, depth: 0.3 },
+        { height: 1, width: 0.25, depth: 0.25 },
         scene
     );
-    leftArm.parent = playerRoot;
-    leftArm.position.set(-0.8, 1.25, 0);
+    leftArm.parent = visualRoot;
+    leftArm.position.set(-0.7, 1.2, 0);
 
-    const rightArm = BABYLON.MeshBuilder.CreateBox(
-        "rightArm",
-        { height: 1.5, width: 0.3, depth: 0.3 },
-        scene
-    );
-    rightArm.parent = playerRoot;
-    rightArm.position.set(0.8, 1.25, 0);
+    const rightArm = leftArm.clone("rightArm");
+    rightArm.position.x = 0.7;
 
     const leftLeg = BABYLON.MeshBuilder.CreateBox(
         "leftLeg",
-        { height: 1.5, width: 0.4, depth: 0.4 },
+        { height: 1, width: 0.3, depth: 0.3 },
         scene
     );
-    leftLeg.parent = playerRoot;
-    leftLeg.position.set(-0.3, -0.75, 0);
+    leftLeg.parent = visualRoot;
+    leftLeg.position.set(-0.3, 0.2, 0);
 
-    const rightLeg = BABYLON.MeshBuilder.CreateBox(
-        "rightLeg",
-        { height: 1.5, width: 0.4, depth: 0.4 },
+    const rightLeg = leftLeg.clone("rightLeg");
+    rightLeg.position.x = 0.3;
+
+    /* =====================
+       CAMERA (SEPARATED)
+    ===================== */
+    const cameraPivot = new BABYLON.TransformNode("cameraPivot", scene);
+    cameraPivot.parent = player;
+    cameraPivot.position.y = 1.5;
+
+    const camera = new BABYLON.UniversalCamera(
+        "camera",
+        new BABYLON.Vector3(0, 0, -6),
         scene
     );
-    rightLeg.parent = playerRoot;
-    rightLeg.position.set(0.3, -0.75, 0);
+    camera.parent = cameraPivot;
+    camera.attachControl(canvas, true);
+    camera.minZ = 0.1;
 
-    /* =======================
+    /* =====================
        INPUT
-    ======================= */
-    const inputMap = {};
-    scene.actionManager = new BABYLON.ActionManager(scene);
+    ===================== */
+    const input = {};
+    window.addEventListener("keydown", e => input[e.key.toLowerCase()] = true);
+    window.addEventListener("keyup", e => input[e.key.toLowerCase()] = false);
 
-    scene.actionManager.registerAction(
-        new BABYLON.ExecuteCodeAction(
-            BABYLON.ActionManager.OnKeyDownTrigger,
-            (evt) => (inputMap[evt.sourceEvent.key.toLowerCase()] = true)
-        )
-    );
+    let yaw = 0;
+    let pitch = 0;
 
-    scene.actionManager.registerAction(
-        new BABYLON.ExecuteCodeAction(
-            BABYLON.ActionManager.OnKeyUpTrigger,
-            (evt) => (inputMap[evt.sourceEvent.key.toLowerCase()] = false)
-        )
-    );
+    canvas.addEventListener("click", () => canvas.requestPointerLock());
 
-    /* =======================
-       MOUSE LOOK
-    ======================= */
-    let isPointerDown = false;
-    canvas.addEventListener("pointerdown", () => {
-        isPointerDown = true;
-        canvas.requestPointerLock();
+    scene.onPointerObservable.add(e => {
+        if (e.type !== BABYLON.PointerEventTypes.POINTERMOVE) return;
+        yaw += e.event.movementX * 0.002;
+        pitch += e.event.movementY * 0.002;
+        pitch = BABYLON.Scalar.Clamp(pitch, -1.2, 1.2);
     });
-    canvas.addEventListener("pointerup", () => (isPointerDown = false));
 
-    scene.onPointerObservable.add((pi) => {
-        if (!isPointerDown) return;
-        const e = pi.event;
-        camera.rotation.y += e.movementX * 0.002;
-        camera.rotation.x += e.movementY * 0.002;
-    }, BABYLON.PointerEventTypes.POINTERMOVE);
+    /* =====================
+       MOVEMENT VARIABLES
+    ===================== */
+    let velocityY = 0;
+    const speed = 5;
+    const gravity = -20;
+    const jumpForce = 8;
 
-    /* =======================
-       MOVEMENT
-    ======================= */
-    const speed = 0.15;
-    const jumpForce = 6;
-    let canJump = false;
-
+    /* =====================
+       GAME LOOP
+    ===================== */
     scene.onBeforeRenderObservable.add(() => {
-        const forward = camera.getDirection(BABYLON.Axis.Z);
-        const right = camera.getDirection(BABYLON.Axis.X);
+        const dt = engine.getDeltaTime() / 1000;
 
-        const camForward = new BABYLON.Vector3(forward.x, 0, forward.z).normalize();
-        const camRight = new BABYLON.Vector3(right.x, 0, right.z).normalize();
+        // camera rotation
+        cameraPivot.rotation.y = yaw;
+        camera.rotation.x = pitch;
 
-        let moveDir = BABYLON.Vector3.Zero();
-        if (inputMap["w"]) moveDir.addInPlace(camForward);
-        if (inputMap["s"]) moveDir.subtractInPlace(camForward);
-        if (inputMap["a"]) moveDir.subtractInPlace(camRight);
-        if (inputMap["d"]) moveDir.addInPlace(camRight);
-
-        if (moveDir.length() > 0) moveDir.normalize();
-
-        const vel = playerRoot.physicsImpostor.getLinearVelocity();
-        const targetVel = moveDir.scale(speed * 60);
-
-        const smooth = BABYLON.Vector3.Lerp(
-            new BABYLON.Vector3(vel.x, 0, vel.z),
-            targetVel,
-            0.2
+        // movement direction
+        let move = BABYLON.Vector3.Zero();
+        const forward = new BABYLON.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+        const right = new BABYLON.Vector3(
+            Math.sin(yaw + Math.PI / 2),
+            0,
+            Math.cos(yaw + Math.PI / 2)
         );
 
-        playerRoot.physicsImpostor.setLinearVelocity(
-            new BABYLON.Vector3(smooth.x, vel.y, smooth.z)
-        );
+        if (input["w"]) move.addInPlace(forward);
+        if (input["s"]) move.subtractInPlace(forward);
+        if (input["a"]) move.subtractInPlace(right);
+        if (input["d"]) move.addInPlace(right);
 
-        /* Jump */
-        if (inputMap[" "] && canJump) {
-            playerRoot.physicsImpostor.applyImpulse(
-                new BABYLON.Vector3(0, jumpForce, 0),
-                playerRoot.getAbsolutePosition()
-            );
-            canJump = false;
+        if (move.length() > 0) move.normalize();
+
+        // gravity + jump
+        velocityY += gravity * dt;
+        const grounded = player.position.y <= 1.01;
+
+        if (grounded) {
+            velocityY = 0;
+            if (input[" "]) velocityY = jumpForce;
         }
 
-        /* Ground check (simple & stable) */
-        if (playerRoot.position.y <= 2.05) {
-            canJump = true;
+        const movement = move.scale(speed * dt);
+        movement.y = velocityY * dt;
+
+        player.moveWithCollisions(movement);
+
+        // rotate character toward movement
+        if (move.length() > 0) {
+            visualRoot.rotation.y = Math.atan2(move.x, move.z);
         }
-
-        /* Rotate player */
-        if (moveDir.length() > 0) {
-            const angle = Math.atan2(moveDir.x, moveDir.z);
-            playerRoot.rotation.y = BABYLON.Scalar.LerpAngle(
-                playerRoot.rotation.y,
-                angle,
-                0.2
-            );
-        }
-
-        /* Limb animation */
-        const t = performance.now() * 0.002;
-        leftArm.rotation.x = Math.sin(t) * 0.5;
-        rightArm.rotation.x = -Math.sin(t) * 0.5;
-        leftLeg.rotation.x = Math.sin(t * 0.5) * 0.3;
-        rightLeg.rotation.x = -Math.sin(t * 0.5) * 0.3;
-        head.rotation.y = Math.sin(t * 0.3) * 0.5;
-
-        /* Camera follow */
-        camera.position.x = playerRoot.position.x;
-        camera.position.z = playerRoot.position.z - 6;
-        camera.position.y = playerRoot.position.y + 2;
     });
 
     engine.runRenderLoop(() => scene.render());
